@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion Detection</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+
+<style>
+        body {
+        font-family: 'Times New Roman', Times, serif, sans-serif;
+        background-image: url(https://static.vecteezy.com/system/resources/previews/002/276/716/large_2x/abstract-geometric-background-in-flat-design-free-vector.jpg);
+        background-size: cover;
+        margin: 0;
+        padding: 0;
+    }
+
+    h1 {
+        font-size: 2.0em;           
+        color: #0e3355;             
+        text-align: center;         
+        margin-bottom: 30px;        
+        font-weight: bold;          
+        text-transform: uppercase;   
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 50px auto; 
+        display: flex; 
+        justify-content: space-between; 
+    }
+
+    .card {
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); 
+        background-color: #fff; 
+        width: 100%; 
+        padding: 20px; 
+        border-radius: 50px 0px;
+        background-color: #34e9adab;
+    }
+
+    h3.card-title {
+        margin-bottom: 20px; 
+        color: #0e253b;
+    }
+
+    .result-box {
+        border: 2px solid #000;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+        background-color: #f1f1f1; 
+        border-radius: 15px;
+    }
+
+    #video-container {
+        border: 2px solid #000;
+        width: 96%; 
+        height: auto; 
+        border-radius: 10px;
+    }
+
+    video {
+        width: 100%; 
+        height: auto; 
+        border-radius: 10px;
+    }
+
+    .btn{
+        box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+        width:60%; 
+        margin-bottom: 10px; 
+        padding: 5px;
+        border: 2px solid #f1f1f1;
+        border-radius: 5px;
+        background-color: #032d52cc;
+        color: #fff;
+        font-size: 15px;
+        display: block;
+        margin: 0 auto;
+        font-weight: bold;
+
+    }
+    .btn:hover{
+        box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
+    }
+
+    @media (max-width: 768px) {
+        .container {
+            flex-direction: column; 
+        }
+        
+        .card {
+            width: 100%; 
+            margin-bottom: 20px; 
+        }
+    }
+</style>
+
+<body>
+    <h1>Real-Time Emotion Detection</h1>
+    <button id="start" class="btn btn-primary">Start Emotion Detection</button>
+    <button id="stop" class="btn btn-danger" style="display:none;">Stop Emotion Detection</button>
+    <div class="container">
+
+        <!-- Row for Face Emotion Detection -->
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title">Face Emotion Detection</h3>
+                <div id="video-container" class="result-box">
+                    <img id="video" alt="Video stream not available">
+                </div>
+            </div>
+        </div>
+
+        <!-- Row for Speech Emotion Detection -->
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title">Speech Emotion Detection</h3>
+
+                <!-- Language selection dropdown for speech recognition -->
+                <label for="languageSelect">Select Language:</label>
+                <select id="languageSelect">
+                    <option value="en-US">English (US)</option>
+                    <option value="es-ES">Spanish (Spain)</option>
+                    <option value="fr-FR">French (France)</option>
+                    <option value="de-DE">German</option>
+                    <option value="zh-CN">Chinese (Simplified)</option>
+                    <!-- Add more languages as needed -->
+                </select>
+
+                <div id="speech-output" class="result-box">Speech Emotion Results will appear here...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Script to manage speech and face emotion detection -->
+    <script>
+        const socket = io.connect();
+        let videoStream;
+
+        // Start Speech Emotion Detection
+        document.getElementById('start').addEventListener('click', () => {
+            const selectedLanguage = document.getElementById('languageSelect').value; 
+            socket.emit('start_speech_recognition', { language: selectedLanguage }); 
+            document.getElementById('start').style.display = 'none';
+            document.getElementById('stop').style.display = 'block';
+            document.getElementById('speech-output').innerHTML = "Listening...";
+        });
+
+        // Stop Speech Emotion Detection
+        document.getElementById('stop').addEventListener('click', () => {
+            socket.emit('stop_speech_recognition');
+            document.getElementById('stop').style.display = 'none';
+            document.getElementById('start').style.display = 'block';
+        });
+
+        // Handle the result for speech emotions
+        socket.on('emotion_result', function(data) {
+            let outputDiv = document.getElementById('speech-output');
+            
+            if (data.error) {
+                outputDiv.innerHTML = `<p>${data.error}</p>`;
+            } else {
+                outputDiv.innerHTML = "<h5>Recognized Speech:</h5>";
+                outputDiv.innerHTML += `<p>${data.text}</p>`;
+                outputDiv.innerHTML += "<h5>Detected Emotions:</h5>";
+                for (const [emotion, score] of Object.entries(data.emotions)) {
+                    outputDiv.innerHTML += `<p>${emotion}: ${score.toFixed(3)}</p>`;
+                }
+            }
+        });
+
+        // Face Emotion Detection
+        const startButton = document.getElementById('start');
+        const stopButton = document.getElementById('stop');
+        const videoContainer = document.getElementById('video');
+
+        let isRunning = false;
+
+        startButton.addEventListener('click', function() {
+            if (!isRunning) {
+                videoContainer.src = "{{ url_for('video_feed') }}";
+                isRunning = true;
+                startButton.style.display = 'none';
+                stopButton.style.display = 'block';
+            }
+        });
+
+        stopButton.addEventListener('click', function() {
+            if (isRunning) {
+                videoContainer.src = ""; 
+                isRunning = false;
+                stopButton.style.display = 'none';
+                startButton.style.display = 'block';
+            }
+        });
+
+    </script>
+
+</body>
+</html>
